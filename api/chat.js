@@ -5,8 +5,9 @@
 const AZURE_ENDPOINT =
   'https://bmngomezulu-7756-resource.services.ai.azure.com/api/projects/bmngomezulu-7756/applications/LibraryAssistant/protocols/openai/responses?api-version=2025-11-15-preview'
 
+export const config = { api: { bodyParser: true } }
+
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -19,9 +20,15 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'AZURE_AI_API_KEY environment variable is not set.' })
   }
 
-  const { input, model } = req.body || {}
+  // Safely parse body — handles both pre-parsed object and raw string
+  let body = req.body
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body) } catch { body = {} }
+  }
+
+  const { input, model } = body || {}
   if (!input) {
-    return res.status(400).json({ error: 'Request body must include an "input" field.' })
+    return res.status(400).json({ error: 'Request body must include an "input" field.', received: JSON.stringify(body) })
   }
 
   try {
