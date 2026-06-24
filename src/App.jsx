@@ -123,7 +123,7 @@ export default function App() {
         <div style={s.headerInner}>
           <img src="logo.png" alt="iYunivesithi Walter Sisulu" style={s.logo} />
           <div style={s.headerDiv}>
-            <h1 style={s.h1}>Library Services</h1>
+            <h1 style={s.h1}>Library and Information Services</h1>
             <p style={s.sub}>DHET Accredited Journal List · 2026–2027</p>
           </div>
         </div>
@@ -194,7 +194,7 @@ export default function App() {
 
       {/* Footer */}
       <footer style={s.footer}>
-        Walter Sisulu Library Services &nbsp;·&nbsp;
+        Walter Sisulu Library and Information Services &nbsp;·&nbsp;
         Contact your <span style={s.footerSpan}>Faculty Librarian</span> for accreditation queries &nbsp;·&nbsp;
         Source: DHET
       </footer>
