@@ -1,0 +1,1 @@
+:root{--maroon: #551516;--maroon-light: #7A2426;--ochre: #CF8029;--ochre-light: #E0A35E;--red: #A02124;--terracotta: #B45736;--sage: #546A55;--charcoal: #2B2926;--grey: #6E6660;--grey-light: #E4DFD6;--cream: #F7F3EA;--white: #FFFFFF}*{box-sizing:border-box;margin:0;padding:0}body{font-family:Inter,sans-serif;background:var(--cream);color:var(--charcoal);min-height:100vh}
