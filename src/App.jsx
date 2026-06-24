@@ -1,11 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search } from 'lucide-react'
 import ChatWidget from './components/ChatWidget'
-
-// journals_data.js is loaded as a plain script in index.html
-// It sets window.JOURNAL_DATA = [ [title, issn, eissn, status, qualify, publisher], ... ]
-const getData = () => window.JOURNAL_DATA || []
-
+ 
+ 
 const s = {
   // Layout
   page:       { display:'flex', flexDirection:'column', minHeight:'100vh' },
@@ -16,7 +13,7 @@ const s = {
   h1:         { fontFamily:"'Playfair Display', Georgia, serif", fontSize:'1.3rem', fontWeight:700, color:'var(--maroon)' },
   sub:        { fontSize:'0.88rem', color:'var(--grey)', marginTop:4 },
   main:       { maxWidth:1000, margin:'0 auto', padding:'32px 24px 60px', flex:1, width:'100%' },
-
+ 
   // Search card
   card:       { background:'var(--white)', border:'1px solid var(--grey-light)', borderLeft:'6px solid var(--ochre)', borderRadius:6, padding:24, boxShadow:'0 2px 10px rgba(43,41,38,.06)' },
   label:      { display:'block', fontSize:'0.74rem', textTransform:'uppercase', letterSpacing:'1px', color:'var(--maroon)', fontWeight:700, marginBottom:8 },
@@ -26,39 +23,39 @@ const s = {
   input:      { width:'100%', padding:'12px 14px 12px 42px', fontSize:'1rem', border:'2px solid var(--grey-light)', borderRadius:5, fontFamily:'Inter, sans-serif', outline:'none' },
   select:     { padding:'12px 14px', border:'2px solid var(--grey-light)', borderRadius:5, fontFamily:'Inter, sans-serif', background:'var(--white)', color:'var(--charcoal)', fontSize:'0.92rem' },
   hint:       { fontSize:'0.8rem', color:'var(--grey)', marginTop:10 },
-
+ 
   // Stats
   statsRow:   { display:'flex', gap:14, marginTop:22, flexWrap:'wrap' },
   statBox:    { flex:1, minWidth:130, background:'var(--white)', border:'1px solid var(--grey-light)', borderRadius:6, padding:'14px 16px', textAlign:'center' },
   statNum:    { fontSize:'1.5rem', fontWeight:800, color:'var(--maroon)' },
   statLbl:    { fontSize:'0.72rem', textTransform:'uppercase', letterSpacing:'0.5px', color:'var(--grey)', marginTop:2 },
-
+ 
   // Results
   count:      { fontSize:'0.84rem', color:'var(--grey)', margin:'18px 2px 10px' },
   resultCard: { background:'var(--white)', border:'1px solid var(--grey-light)', borderLeft:'4px solid var(--terracotta)', borderRadius:6, padding:'18px 20px', marginBottom:12, display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', flexWrap:'wrap' },
   resultTitle:{ fontFamily:"'Playfair Display', Georgia, serif", fontSize:'1.05rem', fontWeight:700, color:'var(--maroon)', marginBottom:6 },
   resultMeta: { fontSize:'0.84rem', color:'var(--grey)', lineHeight:1.6 },
   metaB:      { color:'var(--charcoal)', fontWeight:600 },
-
+ 
   // Badges
   badgeYes:   { background:'var(--sage)',    color:'var(--white)', fontWeight:700, fontSize:'0.74rem', textTransform:'uppercase', letterSpacing:'0.5px', padding:'7px 14px', borderRadius:20, whiteSpace:'nowrap' },
   badgeNo:    { background:'var(--red)',     color:'var(--white)', fontWeight:700, fontSize:'0.74rem', textTransform:'uppercase', letterSpacing:'0.5px', padding:'7px 14px', borderRadius:20, whiteSpace:'nowrap' },
   badgeAmber: { background:'#B97D1F',        color:'var(--white)', fontWeight:700, fontSize:'0.74rem', textTransform:'uppercase', letterSpacing:'0.5px', padding:'7px 14px', borderRadius:20, whiteSpace:'nowrap' },
-
+ 
   // Empty / welcome
   empty:      { textAlign:'center', padding:'50px 20px', color:'var(--grey)', fontSize:'0.92rem' },
-
+ 
   // Footer
   footer:     { background:'var(--maroon)', color:'var(--grey-light)', textAlign:'center', padding:22, fontSize:'0.8rem' },
   footerSpan: { color:'var(--ochre-light)' },
 }
-
+ 
 function Badge({ qualify }) {
   if (qualify === 'Yes') return <span style={s.badgeYes}>Accredited</span>
   if (qualify === 'No')  return <span style={s.badgeNo}>Not Accredited</span>
   return <span style={s.badgeAmber}>Check Status</span>
 }
-
+ 
 function Stats({ data }) {
   const total      = data.length
   const accredited = data.filter(r => r[4] === 'Yes').length
@@ -81,21 +78,21 @@ function Stats({ data }) {
     </div>
   )
 }
-
+ 
 export default function App() {
   const [query, setQuery]     = useState('')
   const [type, setType]       = useState('title')
   const [results, setResults] = useState(null)
   const [data, setData]       = useState([])
-
-  // journals_data.js loaded as <script> in index.html — wait for it
+ 
+  // Load journal data from public/journals_data.json
   useEffect(() => {
-    const check = setInterval(() => {
-      if (window.JOURNAL_DATA) { setData(window.JOURNAL_DATA); clearInterval(check) }
-    }, 100)
-    return () => clearInterval(check)
+    fetch('journals_data.json')
+      .then(r => r.json())
+      .then(setData)
+      .catch(err => console.error('Failed to load journal data:', err))
   }, [])
-
+ 
   const search = useCallback((q, t) => {
     if (!q.trim()) { setResults(null); return }
     const lower = q.toLowerCase()
@@ -110,12 +107,12 @@ export default function App() {
       setResults(data.filter(r => r[0] && r[0].toLowerCase().includes(lower)))
     }
   }, [data])
-
+ 
   useEffect(() => {
     const t = setTimeout(() => search(query, type), 120)
     return () => clearTimeout(t)
   }, [query, type, search])
-
+ 
   return (
     <div style={s.page}>
       {/* Header */}
@@ -128,7 +125,7 @@ export default function App() {
           </div>
         </div>
       </header>
-
+ 
       {/* Main */}
       <main style={s.main}>
         {/* Search card */}
@@ -153,7 +150,7 @@ export default function App() {
           </div>
           <p style={s.hint}>Start typing — results update as you go. Source: DHET Master Journal List.</p>
         </div>
-
+ 
         {/* Results */}
         {results === null ? (
           <>
@@ -191,14 +188,14 @@ export default function App() {
           </>
         )}
       </main>
-
+ 
       {/* Footer */}
       <footer style={s.footer}>
         Walter Sisulu Library and Information Services &nbsp;·&nbsp;
         Contact your <span style={s.footerSpan}>Faculty Librarian</span> for accreditation queries &nbsp;·&nbsp;
         Source: DHET
       </footer>
-
+ 
       {/* Floating chat */}
       <ChatWidget />
     </div>
