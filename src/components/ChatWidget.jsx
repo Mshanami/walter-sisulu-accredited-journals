@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { MessageCircle, X, Send } from 'lucide-react'
-
+ 
 const PROXY_URL = '/api/chat'   // Vercel serverless function
-
+ 
 const CHIPS = [
   { label: 'iWS Libraries',  prompt: 'Tell me about the iYunivesithi Walter Sisulu Libraries — locations, hours, and services.' },
   { label: 'LibGuides page', prompt: 'What resources are available on the Walter Sisulu University LibGuides page?' },
   { label: 'Research tools', prompt: 'What research tools does iWS Library offer for students and researchers?' },
 ]
-
+ 
 const css = `
   .chat-fab {
     position: fixed; bottom: 28px; right: 28px;
@@ -78,17 +78,17 @@ const css = `
   .chat-send:disabled { background:#E4DFD6; cursor:not-allowed; }
   @media(max-width:420px){ .chat-panel{width:calc(100vw - 24px);right:12px;} }
 `
-
+ 
 export default function ChatWidget() {
   const [open, setOpen]       = useState(false)
-  const [msgs, setMsgs]       = useState([{ role:'bot', text:'Hi! I\'m LibAI, the iWS Library Assistant. Ask me anything about accreditation, journals, or library services.' }])
+  const [msgs, setMsgs]       = useState([{ role:'bot', text:'Hi! I\'m LibAI, the iWS Library Assistant. Ask me anything about library and information services.' }])
   const [input, setInput]     = useState('')
   const [loading, setLoading] = useState(false)
   const history               = useRef([])
   const msgsEl                = useRef(null)
-
+ 
   useEffect(() => { if (msgsEl.current) msgsEl.current.scrollTop = msgsEl.current.scrollHeight }, [msgs])
-
+ 
   async function send(text) {
     const q = (text || input).trim()
     if (!q || loading) return
@@ -97,7 +97,7 @@ export default function ChatWidget() {
     history.current.push({ role:'user', content:q })
     setLoading(true)
     setMsgs(m => [...m, { role:'bot typing', text:'Thinking…' }])
-
+ 
     try {
       const res  = await fetch(PROXY_URL, {
         method: 'POST',
@@ -105,11 +105,19 @@ export default function ChatWidget() {
         body: JSON.stringify({ input: history.current, model:'gpt-4o' })
       })
       const data = await res.json()
+ 
+      // Azure AI Foundry Responses API — try every known shape
       const reply =
+        // output_text type (most common in Foundry agents)
+        data?.output?.find?.(o => o.type === 'message')
+          ?.content?.find?.(c => c.type === 'output_text' || c.type === 'text')?.text ||
+        // flat output array
         data?.output?.[0]?.content?.[0]?.text ||
-        data?.choices?.[0]?.message?.content  ||
-        'Sorry, I didn\'t get a response. Please try again.'
-
+        // OpenAI chat completions fallback
+        data?.choices?.[0]?.message?.content ||
+        // last resort: dump raw so we can debug
+        (data ? `[Unexpected format: ${JSON.stringify(data).slice(0, 200)}]` : 'Sorry, no response received.')
+ 
       history.current.push({ role:'assistant', content:reply })
       setMsgs(m => [...m.slice(0,-1), { role:'bot', text:reply }])
     } catch {
@@ -117,37 +125,37 @@ export default function ChatWidget() {
     }
     setLoading(false)
   }
-
+ 
   return (
     <>
       <style>{css}</style>
-
+ 
       <button className="chat-fab" onClick={() => setOpen(o => !o)} title="Ask LibAI">
         {open ? <X size={22} /> : <MessageCircle size={22} />}
       </button>
-
+ 
       <div className={`chat-panel${open ? '' : ' hidden'}`}>
         <div className="chat-hdr">
           <div className="chat-dot" />
           <div className="chat-hdr-text">
-            <div className="chat-hdr-title">iWS LibAI Assistant</div>
+            <div className="chat-hdr-title">iWS Library Assistant</div>
             <div className="chat-hdr-sub">iYunivesithi Walter Sisulu Library</div>
           </div>
           <button className="chat-close" onClick={() => setOpen(false)}><X size={18}/></button>
         </div>
-
+ 
         <div className="chat-chips">
           {CHIPS.map(c => (
             <button key={c.label} className="chip" onClick={() => send(c.prompt)}>{c.label}</button>
           ))}
         </div>
-
+ 
         <div className="chat-msgs" ref={msgsEl}>
           {msgs.map((m, i) => (
             <div key={i} className={`msg ${m.role}`}>{m.text}</div>
           ))}
         </div>
-
+ 
         <div className="chat-input-row">
           <input
             className="chat-input"
