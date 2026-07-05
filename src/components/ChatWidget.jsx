@@ -67,18 +67,20 @@ const css = `
   @keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.25); opacity:.7; } }
 
   .chat-panel {
-    position: fixed; bottom: 96px; right: 24px;
-    width: 380px; height: 580px; max-height: calc(100vh - 120px);
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 50vw; min-width: 360px; max-width: 680px;
+    height: 100vh;
     display: flex; flex-direction: column;
-    background: rgba(255,255,255,.92);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(228,223,214,.8); border-radius: 20px;
-    box-shadow: 0 24px 60px rgba(43,41,38,.22), 0 4px 16px rgba(43,41,38,.1);
-    z-index: 999; overflow: hidden; transform-origin: bottom right;
-    transition: opacity .28s cubic-bezier(.22,1,.36,1), transform .28s cubic-bezier(.22,1,.36,1);
+    background: rgba(255,255,255,.96);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    border-left: 1px solid rgba(228,223,214,.8);
+    border-radius: 0;
+    box-shadow: -12px 0 48px rgba(43,41,38,.18), -2px 0 8px rgba(43,41,38,.08);
+    z-index: 999; overflow: hidden; transform-origin: right center;
+    transition: opacity .32s cubic-bezier(.22,1,.36,1), transform .32s cubic-bezier(.22,1,.36,1);
   }
-  .chat-panel.hidden { opacity: 0; pointer-events: none; transform: translateY(16px) scale(.92); }
+  .chat-panel.hidden { opacity: 0; pointer-events: none; transform: translateX(100%); }
 
   .chat-hdr {
     position: relative;
@@ -179,15 +181,18 @@ const css = `
   .chat-send:active:not(:disabled) { transform: scale(.96); }
   .chat-send:disabled { background:#E4DFD6; cursor:not-allowed; box-shadow:none; }
 
+  .msg { max-width: 72%; }
+
   @media (max-width: 480px) {
     .chat-fab { bottom: 18px; right: 18px; width:56px; height:56px; }
     .chat-panel {
-      bottom: 0; right: 0; left: 0; top: 0;
-      width: 100%; height: 100%; max-height: 100%; border-radius: 0;
-      transform-origin: center;
+      top: 0; bottom: 0; right: 0; left: 0;
+      width: 100%; min-width: unset; max-width: unset;
+      height: 100%; border-left: none; border-radius: 0;
+      box-shadow: none; transform-origin: center;
     }
-    .chat-panel.hidden { transform: translateY(24px) scale(.97); }
-    .chat-hdr { padding-top: max(18px, env(safe-area-inset-top)); border-radius:0; }
+    .chat-panel.hidden { transform: translateY(24px) scale(.97); opacity: 0; }
+    .chat-hdr { padding-top: max(18px, env(safe-area-inset-top)); }
     .msg { max-width: 84%; }
   }
 `
