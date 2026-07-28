@@ -1,5 +1,4 @@
 // api/chat.js — Vercel Serverless Function
-// Handles campus detection in code so the agent never asks twice.
 // Set AZURE_AI_API_KEY in Vercel → Settings → Environment Variables
 
 const AZURE_ENDPOINT =
@@ -7,18 +6,17 @@ const AZURE_ENDPOINT =
 
 export const config = { api: { bodyParser: true } }
 
-// Campus names and their aliases the user might type
 const CAMPUSES = {
   'Buffalo City': ['buffalo city', 'east london', 'buffalo', 'ecl', 'bcm'],
-  'Mthatha':      ['mthatha', 'umtata', 'mth'],
+  'Mthatha':      ['mthatha', 'umtata'],
   'Butterworth':  ['butterworth', 'butter'],
-  'Komani':       ['komani', 'queenstown', 'queen'],
+  'Komani':       ['komani', 'queenstown'],
   'Potsdam':      ['potsdam'],
   'Chiselhurst':  ['chiselhurst', 'chisel'],
 }
 
-// Detect campus from any message in the history
 function detectCampus(messages) {
+  // Scan all messages in reverse to find most recent campus mention
   for (const msg of [...messages].reverse()) {
     const text = (msg.content || '').toLowerCase()
     for (const [name, aliases] of Object.entries(CAMPUSES)) {
@@ -28,22 +26,11 @@ function detectCampus(messages) {
   return null
 }
 
-// Check if the last assistant message was asking for a campus
 function agentAskedForCampus(messages) {
   const assistantMsgs = messages.filter(m => m.role === 'assistant')
-  if (assistantMsgs.length === 0) return false
+  if (!assistantMsgs.length) return false
   const last = (assistantMsgs[assistantMsgs.length - 1].content || '').toLowerCase()
-  return last.includes('which iws campus') || last.includes('which campus') || last.includes('campus are you at')
-}
-
-// Build a context injection message so the agent always knows the campus
-function buildCampusInjection(campus) {
-  return {
-    role: 'system',
-    content: `CONTEXT: The user has confirmed they are at the ${campus} campus. ` +
-      `You already know their campus. Do NOT ask for it again. ` +
-      `Answer their current question directly for the ${campus} campus.`
-  }
+  return last.includes('which') && last.includes('campus')
 }
 
 export default async function handler(req, res) {
@@ -56,7 +43,7 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.AZURE_AI_API_KEY
   if (!apiKey) {
-    return res.status(500).json({ error: 'AZURE_AI_API_KEY is not set in environment variables.' })
+    return res.status(500).json({ error: 'AZURE_AI_API_KEY is not set.' })
   }
 
   let body = req.body
@@ -69,28 +56,38 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing "input" field in request body.' })
   }
 
-  // Detect campus from conversation history and inject context if found
-  const allMsgs = Array.isArray(input) ? [...input] : [{ role: 'user', content: input }]
-  const campus = detectCampus(allMsgs)
+  // Work with a copy of the messages array
+  const msgs = Array.isArray(input) ? input.map(m => ({ ...m })) : [{ role: 'user', content: String(input) }]
+
+  // Detect campus from full conversation history
+  const campus = detectCampus(msgs)
 
   if (campus) {
-    const justAnsweredCampus = agentAskedForCampus(allMsgs)
-    const originalQ = allMsgs.filter(m => m.role === 'user').slice(-2, -1)[0]?.content || 'library services at this campus'
+    // Find the last user message and prepend campus context to its content
+    // This avoids injecting extra messages which break the Azure Foundry format
+    const lastUserIdx = msgs.map(m => m.role).lastIndexOf('user')
+    if (lastUserIdx !== -1) {
+      const originalContent = msgs[lastUserIdx].content || ''
+      const justAnsweredCampus = agentAskedForCampus(msgs)
 
-    const injectionContent = justAnsweredCampus
-      ? `CONTEXT: The user just confirmed their campus is ${campus} in response to your question. ` +
-        `Do NOT ask any follow-up. Do NOT ask for clarification. ` +
-        `Their original question was: "${originalQ}". ` +
-        `Answer that question now, directly, for the ${campus} campus.`
-      : `CONTEXT: The user is at the ${campus} campus. ` +
-        `Do NOT ask for their campus again. Answer their question directly for ${campus} campus.`
+      let prefix
+      if (justAnsweredCampus) {
+        // User just replied with campus name — retrieve original question
+        const userMsgs = msgs.filter(m => m.role === 'user')
+        const originalQuestion = userMsgs.length >= 2
+          ? userMsgs[userMsgs.length - 2].content
+          : 'library services'
 
-    const lastUserIdx = allMsgs.map(m => m.role).lastIndexOf('user')
-    // Azure Foundry Responses API only supports 'user' and 'assistant' roles in input
-    allMsgs.splice(lastUserIdx, 0, { role: 'user', content: `[INTERNAL CONTEXT — do not repeat this to the user]: ${injectionContent}` })
-    // Add a brief assistant acknowledgement so the conversation structure stays valid
-    allMsgs.splice(lastUserIdx + 1, 0, { role: 'assistant', content: 'Understood.' })
-    input = allMsgs
+        prefix = `[Campus: ${campus}. The user is answering your campus question. ` +
+          `Their original question was: "${originalQuestion}". ` +
+          `Answer that question now for ${campus} campus. Do not ask anything else.] `
+      } else {
+        prefix = `[Campus: ${campus}. Answer directly for ${campus} campus. Do not ask for campus again.] `
+      }
+
+      msgs[lastUserIdx].content = prefix + originalContent
+    }
+    input = msgs
   }
 
   try {
