@@ -19,13 +19,21 @@ const CAMPUSES = {
 
 // Detect campus from any message in the history
 function detectCampus(messages) {
-  for (const msg of messages) {
+  for (const msg of [...messages].reverse()) {
     const text = (msg.content || '').toLowerCase()
     for (const [name, aliases] of Object.entries(CAMPUSES)) {
       if (aliases.some(a => text.includes(a))) return name
     }
   }
   return null
+}
+
+// Check if the last assistant message was asking for a campus
+function agentAskedForCampus(messages) {
+  const assistantMsgs = messages.filter(m => m.role === 'assistant')
+  if (assistantMsgs.length === 0) return false
+  const last = (assistantMsgs[assistantMsgs.length - 1].content || '').toLowerCase()
+  return last.includes('which iws campus') || last.includes('which campus') || last.includes('campus are you at')
 }
 
 // Build a context injection message so the agent always knows the campus
@@ -62,13 +70,24 @@ export default async function handler(req, res) {
   }
 
   // Detect campus from conversation history and inject context if found
-  const campus = detectCampus(Array.isArray(input) ? input : [{ content: input }])
+  const allMsgs = Array.isArray(input) ? [...input] : [{ role: 'user', content: input }]
+  const campus = detectCampus(allMsgs)
+
   if (campus) {
-    // Inject campus context as the last system message before the final user message
-    const msgs = Array.isArray(input) ? [...input] : [{ role: 'user', content: input }]
-    const lastUserIdx = msgs.map(m => m.role).lastIndexOf('user')
-    msgs.splice(lastUserIdx, 0, buildCampusInjection(campus))
-    input = msgs
+    const justAnsweredCampus = agentAskedForCampus(allMsgs)
+    const originalQ = allMsgs.filter(m => m.role === 'user').slice(-2, -1)[0]?.content || 'library services at this campus'
+
+    const injectionContent = justAnsweredCampus
+      ? `CONTEXT: The user just confirmed their campus is ${campus} in response to your question. ` +
+        `Do NOT ask any follow-up. Do NOT ask for clarification. ` +
+        `Their original question was: "${originalQ}". ` +
+        `Answer that question now, directly, for the ${campus} campus.`
+      : `CONTEXT: The user is at the ${campus} campus. ` +
+        `Do NOT ask for their campus again. Answer their question directly for ${campus} campus.`
+
+    const lastUserIdx = allMsgs.map(m => m.role).lastIndexOf('user')
+    allMsgs.splice(lastUserIdx, 0, { role: 'system', content: injectionContent })
+    input = allMsgs
   }
 
   try {

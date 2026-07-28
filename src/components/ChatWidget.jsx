@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { MessageCircle, X, Send, BookOpen } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { MessageCircle, X, Send, BookOpen, Trash2 } from 'lucide-react'
 
 const PROXY_URL = '/api/chat'
 
@@ -9,38 +9,28 @@ const CHIPS = [
   { label: 'Research tools', prompt: 'What research tools does iWS Library offer for students and researchers?' },
 ]
 
-function linkify(text) {
-  const mdRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
-  const segments = []
-  let lastIndex = 0
-  let m
-  while ((m = mdRegex.exec(text)) !== null) {
-    if (m.index > lastIndex) segments.push(text.slice(lastIndex, m.index))
-    segments.push(<a key={`md-${m.index}`} href={m[2]} target="_blank" rel="noopener noreferrer">{m[1]}</a>)
-    lastIndex = m.index + m[0].length
-  }
-  if (lastIndex < text.length) segments.push(text.slice(lastIndex))
-
-  const urlRegex = /(https?:\/\/[^\s)]+|www\.[^\s)]+)|([\w.+-]+@[\w-]+\.[a-z.]{2,})/gi
-  const finalParts = []
-  segments.forEach((seg, segIdx) => {
-    if (typeof seg !== 'string') { finalParts.push(seg); return }
-    let idx = 0, match
-    urlRegex.lastIndex = 0
-    while ((match = urlRegex.exec(seg)) !== null) {
-      if (match.index > idx) finalParts.push(seg.slice(idx, match.index))
-      const matched = match[0]
-      if (match[2]) {
-        finalParts.push(<a key={`em-${segIdx}-${match.index}`} href={`mailto:${matched}`}>{matched}</a>)
-      } else {
-        const href = matched.startsWith('www.') ? `https://${matched}` : matched
-        finalParts.push(<a key={`url-${segIdx}-${match.index}`} href={href} target="_blank" rel="noopener noreferrer">{matched}</a>)
-      }
-      idx = match.index + matched.length
+function renderMarkdown(text) {
+  const lines = text.split(/\n/)
+  const result = []
+  lines.forEach((line, lineIdx) => {
+    if (line.trim() === '') { result.push(<br key={`br-${lineIdx}`} />); return }
+    const parts = []
+    const pattern = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s)]+|www\.[^\s)]+)|([\w.+-]+@[\w-]+\.[a-z.]{2,})/g
+    let last = 0, m
+    while ((m = pattern.exec(line)) !== null) {
+      if (m.index > last) parts.push(line.slice(last, m.index))
+      if (m[1])      parts.push(<strong key={`b-${lineIdx}-${m.index}`}>{m[2]}</strong>)
+      else if (m[3]) parts.push(<em key={`i-${lineIdx}-${m.index}`}>{m[4]}</em>)
+      else if (m[5]) parts.push(<a key={`ml-${lineIdx}-${m.index}`} href={m[6]} target="_blank" rel="noopener noreferrer">{m[5]}</a>)
+      else if (m[7]) { const href = m[7].startsWith('www.') ? `https://${m[7]}` : m[7]; parts.push(<a key={`ul-${lineIdx}-${m.index}`} href={href} target="_blank" rel="noopener noreferrer">{m[7]}</a>) }
+      else if (m[8]) parts.push(<a key={`em-${lineIdx}-${m.index}`} href={`mailto:${m[8]}`}>{m[8]}</a>)
+      last = m.index + m[0].length
     }
-    if (idx < seg.length) finalParts.push(seg.slice(idx))
+    if (last < line.length) parts.push(line.slice(last))
+    result.push(<span key={`line-${lineIdx}`}>{parts}</span>)
+    if (lineIdx < lines.length - 1) result.push(<br key={`lbr-${lineIdx}`} />)
   })
-  return finalParts
+  return result
 }
 
 const css = `
@@ -112,6 +102,13 @@ const css = `
     transition: background .15s; position:relative; z-index:1; flex-shrink:0;
   }
   .chat-close:hover { background: rgba(255,255,255,.24); }
+  .chat-clear {
+    background: rgba(255,255,255,.12); border:none; color:rgba(255,255,255,.7);
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    width:30px; height:30px; border-radius:50%;
+    transition: background .15s, color .15s; position:relative; z-index:1; flex-shrink:0;
+  }
+  .chat-clear:hover { background: rgba(207,128,41,.3); color:#fff; }
 
   .chat-chips { display:flex; gap:7px; padding:12px 14px; overflow-x:auto; scrollbar-width:none; }
   .chat-chips::-webkit-scrollbar { display:none; }
@@ -197,32 +194,72 @@ const css = `
   }
 `
 
+const STORAGE_KEY = 'iws-libai-chat'
+const WELCOME = { role: 'bot', text: "Hi! I'm LibAI, the iWS Library Assistant. Ask me anything about accreditation, journals, or library services.", ts: Date.now() }
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch {}
+  return [WELCOME]
+}
+
+function fmt(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
 export default function ChatWidget() {
   const [open, setOpen]       = useState(false)
-  const [msgs, setMsgs]       = useState([{ role:'bot', text:'Hi! I\'m LibAI, the iWS Library Assistant. Ask me anything about accreditation, journals, or library services.' }])
+  const [msgs, setMsgs]       = useState(loadSaved)
   const [input, setInput]     = useState('')
   const [loading, setLoading] = useState(false)
   const history                = useRef([])
   const msgsEl                 = useRef(null)
   const inputEl                = useRef(null)
 
+  // Rebuild API history from saved msgs on mount
+  useEffect(() => {
+    history.current = msgs
+      .filter(m => m.role === 'user' || m.role === 'bot')
+      .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.text }))
+  }, [])
+
+  // Persist msgs to localStorage whenever they change (skip typing indicator)
+  useEffect(() => {
+    const toSave = msgs.filter(m => m.role !== 'bot typing')
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave)) } catch {}
+  }, [msgs])
+
   useEffect(() => { if (msgsEl.current) msgsEl.current.scrollTop = msgsEl.current.scrollHeight }, [msgs])
   useEffect(() => { if (open && inputEl.current) setTimeout(() => inputEl.current.focus(), 300) }, [open])
+
+  const clearChat = useCallback(() => {
+    history.current = []
+    setMsgs([WELCOME])
+    try { localStorage.removeItem(STORAGE_KEY) } catch {}
+  }, [])
 
   async function send(text) {
     const q = (text || input).trim()
     if (!q || loading) return
     setInput('')
-    setMsgs(m => [...m, { role:'user', text:q }])
-    history.current.push({ role:'user', content:q })
+    const userMsg = { role: 'user', text: q, ts: Date.now() }
+    setMsgs(m => [...m, userMsg])
+    history.current.push({ role: 'user', content: q })
     setLoading(true)
-    setMsgs(m => [...m, { role:'bot typing', text:'' }])
+    setMsgs(m => [...m, { role: 'bot typing', text: '', ts: null }])
 
     try {
       const res  = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: history.current, model:'gpt-4o' })
+        body: JSON.stringify({ input: history.current, model: 'gpt-4o' })
       })
       const data = await res.json()
 
@@ -233,10 +270,10 @@ export default function ChatWidget() {
         data?.choices?.[0]?.message?.content ||
         (data ? `[Unexpected format: ${JSON.stringify(data).slice(0, 200)}]` : 'Sorry, no response received.')
 
-      history.current.push({ role:'assistant', content:reply })
-      setMsgs(m => [...m.slice(0,-1), { role:'bot', text:reply }])
+      history.current.push({ role: 'assistant', content: reply })
+      setMsgs(m => [...m.slice(0, -1), { role: 'bot', text: reply, ts: Date.now() }])
     } catch {
-      setMsgs(m => [...m.slice(0,-1), { role:'bot', text:'⚠️ Could not reach the assistant. Please check your connection.' }])
+      setMsgs(m => [...m.slice(0, -1), { role: 'bot', text: '⚠️ Could not reach the assistant. Please check your connection.', ts: Date.now() }])
     }
     setLoading(false)
   }
@@ -257,6 +294,9 @@ export default function ChatWidget() {
             <div className="chat-hdr-title">iWS LibAI Assistant</div>
             <div className="chat-hdr-sub"><span className="live-dot" />iYunivesithi Walter Sisulu Library</div>
           </div>
+          <button className="chat-clear" onClick={clearChat} aria-label="Clear chat history" title="Clear chat">
+            <Trash2 size={14}/>
+          </button>
           <button className="chat-close" onClick={() => setOpen(false)} aria-label="Close chat"><X size={16}/></button>
         </div>
 
@@ -273,10 +313,17 @@ export default function ChatWidget() {
             return (
               <div key={i} className={`msg-row ${isUser ? 'user' : 'bot'}`}>
                 <div className="msg-avatar">{isUser ? 'You' : 'AI'}</div>
-                <div className={`msg ${isUser ? 'user' : 'bot'}`}>
-                  {isTyping
-                    ? <div className="typing-dots"><span/><span/><span/></div>
-                    : linkify(m.text)}
+                <div>
+                  <div className={`msg ${isUser ? 'user' : 'bot'}`}>
+                    {isTyping
+                      ? <div className="typing-dots"><span/><span/><span/></div>
+                      : renderMarkdown(m.text)}
+                  </div>
+                  {!isTyping && m.ts && (
+                    <div style={{ fontSize:'.68rem', color:'#B0A89A', marginTop:3, textAlign: isUser ? 'right' : 'left', paddingLeft: isUser ? 0 : 2, paddingRight: isUser ? 2 : 0 }}>
+                      {fmt(m.ts)}
+                    </div>
+                  )}
                 </div>
               </div>
             )
