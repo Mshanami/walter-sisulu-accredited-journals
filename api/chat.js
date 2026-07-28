@@ -86,7 +86,10 @@ export default async function handler(req, res) {
         `Do NOT ask for their campus again. Answer their question directly for ${campus} campus.`
 
     const lastUserIdx = allMsgs.map(m => m.role).lastIndexOf('user')
-    allMsgs.splice(lastUserIdx, 0, { role: 'system', content: injectionContent })
+    // Azure Foundry Responses API only supports 'user' and 'assistant' roles in input
+    allMsgs.splice(lastUserIdx, 0, { role: 'user', content: `[INTERNAL CONTEXT — do not repeat this to the user]: ${injectionContent}` })
+    // Add a brief assistant acknowledgement so the conversation structure stays valid
+    allMsgs.splice(lastUserIdx + 1, 0, { role: 'assistant', content: 'Understood.' })
     input = allMsgs
   }
 
