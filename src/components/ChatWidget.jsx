@@ -208,7 +208,7 @@ const css = `
 `
 
 const STORAGE_KEY = 'iws-libai-chat'
-const WELCOME = { role: 'bot', text: "Hi! I'm LibAI, the iWS Library Assistant. Ask me anything about accreditation, journals, or library services.", ts: Date.now() }
+const WELCOME = { role: 'bot', text: "Hi! 👋 I'm LibAI, the iYunivesithi Walter Sisulu Library Assistant.\n\nI can help you with library hours, borrowing, databases, research support, and more. How can I assist you today?", ts: Date.now() }
 
 function loadSaved() {
   try {
@@ -361,7 +361,7 @@ export default function ChatWidget() {
                       {fmt(m.ts)}
                     </div>
                   )}
-                  {!isUser && !isTyping && m.ts && (
+                  {!isUser && !isTyping && m.ts && m.role === 'bot' && !loading && i > 0 && (
                     feedback[i] === 'done'
                       ? <div className="fb-thanks">Thanks for the feedback!</div>
                       : <div className="feedback-row">
@@ -393,7 +393,7 @@ export default function ChatWidget() {
             placeholder="Message the agent…"
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             maxLength={500}
           />
           <button className="chat-send" onClick={() => send()} disabled={loading} aria-label="Send message">
