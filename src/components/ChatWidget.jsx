@@ -178,6 +178,19 @@ const css = `
   .chat-send:active:not(:disabled) { transform: scale(.96); }
   .chat-send:disabled { background:#E4DFD6; cursor:not-allowed; box-shadow:none; }
 
+  .feedback-row {
+    display: flex; gap: 4px; margin-top: 5px; padding-left: 2px;
+  }
+  .fb-btn {
+    background: none; border: 1.5px solid #E4DFD6; border-radius: 12px;
+    padding: 3px 9px; font-size: .82rem; cursor: pointer; line-height: 1;
+    color: #B0A89A; transition: all .15s;
+  }
+  .fb-btn:hover { border-color: #CF8029; background: #FEF9F0; color: #CF8029; }
+  .fb-btn.active-up   { border-color: #546A55; background: #EEF4EE; color: #546A55; }
+  .fb-btn.active-down { border-color: #A02124; background: #FDEFEF; color: #A02124; }
+  .fb-thanks { font-size: .72rem; color: #B0A89A; margin-top: 4px; padding-left: 2px; font-family: Inter, sans-serif; }
+
   .msg { max-width: 72%; }
 
   @media (max-width: 480px) {
@@ -242,7 +255,31 @@ export default function ChatWidget() {
   const clearChat = useCallback(() => {
     history.current = []
     setMsgs([WELCOME])
+    setFeedback({})
     try { localStorage.removeItem(STORAGE_KEY) } catch {}
+  }, [])
+
+  // feedback: { [msgIndex]: 'up' | 'down' | 'done' }
+  const [feedback, setFeedback] = useState({})
+
+  const submitFeedback = useCallback(async (msgIdx, rating, msgText) => {
+    setFeedback(f => ({ ...f, [msgIdx]: rating }))
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating,                          // 'up' or 'down'
+          message: msgText,
+          ts: new Date().toISOString(),
+          url: window.location.href,
+        })
+      })
+      // Show thanks after a short delay
+      setTimeout(() => setFeedback(f => ({ ...f, [msgIdx]: 'done' })), 800)
+    } catch {
+      // Silently fail — feedback is non-critical
+    }
   }, [])
 
   async function send(text) {
@@ -323,6 +360,24 @@ export default function ChatWidget() {
                     <div style={{ fontSize:'.68rem', color:'#B0A89A', marginTop:3, textAlign: isUser ? 'right' : 'left', paddingLeft: isUser ? 0 : 2, paddingRight: isUser ? 2 : 0 }}>
                       {fmt(m.ts)}
                     </div>
+                  )}
+                  {!isUser && !isTyping && m.ts && (
+                    feedback[i] === 'done'
+                      ? <div className="fb-thanks">Thanks for the feedback!</div>
+                      : <div className="feedback-row">
+                          <button
+                            className={`fb-btn${feedback[i] === 'up' ? ' active-up' : ''}`}
+                            onClick={() => submitFeedback(i, 'up', m.text)}
+                            aria-label="Helpful"
+                            title="Helpful"
+                          >👍</button>
+                          <button
+                            className={`fb-btn${feedback[i] === 'down' ? ' active-down' : ''}`}
+                            onClick={() => submitFeedback(i, 'down', m.text)}
+                            aria-label="Not helpful"
+                            title="Not helpful"
+                          >👎</button>
+                        </div>
                   )}
                 </div>
               </div>
