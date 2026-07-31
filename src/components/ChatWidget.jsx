@@ -143,8 +143,8 @@ const css = `
   .msg-row.user .msg-avatar { background: linear-gradient(145deg, #6B1B1D, #551516); }
 
   .msg {
-    max-width: 76%; padding: 10px 14px; border-radius: 16px;
-    line-height: 1.5; word-break: break-word; box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    max-width: 76%; min-width: 60px; padding: 10px 14px; border-radius: 16px;
+    line-height: 1.5; overflow-wrap: break-word; word-break: normal; box-shadow: 0 1px 2px rgba(0,0,0,.04);
   }
   .msg.bot { background: #fff; border: 1px solid #EDE8DF; border-bottom-left-radius: 5px; color: #2B2926; }
   .msg.user { background: linear-gradient(135deg, #6B1B1D, #551516); color: #fff; border-bottom-right-radius: 5px; }
