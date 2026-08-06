@@ -331,7 +331,7 @@ export default function ChatWidget() {
     }
     const allowed = ['application/pdf','image/jpeg','image/png','image/webp','image/gif']
     if (!allowed.includes(file.type)) {
-      alert('Supported file types: PDF, JPG, PNG, WEBP, GIF.')
+      alert('Supported file types: Images (JPG, PNG, WEBP, GIF) and PDF.')
       return
     }
     readFileAsBase64(file).then(base64 => {
@@ -435,8 +435,8 @@ export default function ChatWidget() {
                         {m.file && (
                           <div className="msg-file">
                             <FileText size={14} style={{flexShrink:0}}/>
-                            <span>{m.file.name}</span>
-                            <span style={{opacity:.6,flexShrink:0}}>{fmtBytes(m.file.size)}</span>
+                            <span title={m.file.name}>{m.file.name}</span>
+                            <span style={{opacity:.6,flexShrink:0,marginLeft:4}}>{fmtBytes(m.file.size)}</span>
                           </div>
                         )}
                         {renderMarkdown(m.text === `📎 ${m.file?.name}` ? '' : m.text)}

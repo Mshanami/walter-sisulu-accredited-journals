@@ -4,7 +4,7 @@
 const AZURE_ENDPOINT =
   'https://bmngomezulu-7756-resource.services.ai.azure.com/api/projects/bmngomezulu-7756/applications/LibraryAssistant/protocols/openai/responses?api-version=2025-11-15-preview'
 
-export const config = { api: { bodyParser: true } }
+export const config = { api: { bodyParser: { sizeLimit: '15mb' } } }
 
 const CAMPUSES = {
   'Buffalo City': ['buffalo city', 'east london', 'buffalo', 'ecl', 'bcm'],
@@ -90,17 +90,48 @@ export default async function handler(req, res) {
     input = msgs
   }
 
-  // Trim base64 file data from older messages (keep only the latest) to avoid huge payloads
+  // Normalise file content and strip base64 from older messages to keep payload small
   if (Array.isArray(input)) {
     const lastFileIdx = input.reduce((last, m, i) => {
-      if (Array.isArray(m.content) && m.content.some(c => c.type === 'input_file')) return i
+      if (Array.isArray(m.content) && m.content.some(c => c.type === 'input_file' || c.type === 'image_url')) return i
       return last
     }, -1)
+
     input = input.map((m, i) => {
-      if (i < lastFileIdx && Array.isArray(m.content)) {
-        return { ...m, content: m.content.map(c => c.type === 'input_file' ? { type: 'input_text', text: `[Previously uploaded file: ${c.filename}]` } : c) }
+      if (!Array.isArray(m.content)) return m
+
+      // Replace old file messages with a placeholder text
+      if (i < lastFileIdx) {
+        return {
+          ...m,
+          content: m.content.map(c => {
+            if (c.type === 'input_file' || c.type === 'image_url') {
+              const name = c.filename || c.image_url?.url?.slice(0,30) || 'file'
+              return { type: 'input_text', text: `[Previously uploaded file: ${name}]` }
+            }
+            return c
+          })
+        }
       }
-      return m
+
+      // Normalise the current file message to Azure Foundry format
+      return {
+        ...m,
+        content: m.content.map(c => {
+          if (c.type === 'input_file') {
+            const isImage = c.file_data?.startsWith('data:image')
+            if (isImage) {
+              // Images: use image_url format
+              return { type: 'image_url', image_url: { url: c.file_data } }
+            } else {
+              // PDFs: Azure Foundry Responses API doesn't support PDF binary directly
+              // Send as a note and ask agent to acknowledge
+              return { type: 'input_text', text: `[User attached a PDF file named "${c.filename}". Acknowledge the upload and let them know you can help with questions about it, but you cannot read PDF content directly. Suggest they copy and paste the relevant text.]` }
+            }
+          }
+          return c
+        })
+      }
     })
   }
 
