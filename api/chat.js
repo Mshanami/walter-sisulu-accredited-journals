@@ -2,7 +2,7 @@
 // Set AZURE_AI_API_KEY in Vercel → Settings → Environment Variables
 
 const AZURE_ENDPOINT =
-  'https://bmngomezulu-7756-resource.services.ai.azure.com/api/projects/bmngomezulu-7756/applications/LibraryAssistant/protocols/openai/responses?api-version=2025-11-15-preview'
+  'https://bmngomezulu-5709-resource.services.ai.azure.com/api/projects/bmngomezulu-5709/agents/LibraryAssistant/endpoint/protocols/openai/responses'
 
 export const config = { api: { bodyParser: { sizeLimit: '15mb' } } }
 
