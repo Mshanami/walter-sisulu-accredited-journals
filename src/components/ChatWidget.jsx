@@ -142,8 +142,12 @@ const css = `
   }
   .msg-row.user .msg-avatar { background: linear-gradient(145deg, #6B1B1D, #551516); }
 
+  .msg-wrap {
+    max-width: 76%; min-width: 60px; display: flex; flex-direction: column;
+  }
+  .msg-row.user .msg-wrap { align-items: flex-end; }
   .msg {
-    max-width: 76%; min-width: 60px; padding: 10px 14px; border-radius: 16px;
+    width: 100%; padding: 10px 14px; border-radius: 16px;
     line-height: 1.5; overflow-wrap: break-word; word-break: normal; box-shadow: 0 1px 2px rgba(0,0,0,.04);
   }
   .msg.bot { background: #fff; border: 1px solid #EDE8DF; border-bottom-left-radius: 5px; color: #2B2926; }
@@ -191,7 +195,7 @@ const css = `
   .fb-btn.active-down { border-color: #A02124; background: #FDEFEF; color: #A02124; }
   .fb-thanks { font-size: .72rem; color: #B0A89A; margin-top: 4px; padding-left: 2px; font-family: Inter, sans-serif; }
 
-  .msg { max-width: 72%; }
+  .msg-wrap { max-width: 72%; }
 
   @media (max-width: 480px) {
     .chat-fab { bottom: 18px; right: 18px; width:56px; height:56px; }
@@ -203,7 +207,7 @@ const css = `
     }
     .chat-panel.hidden { transform: translateY(24px) scale(.97); opacity: 0; }
     .chat-hdr { padding-top: max(18px, env(safe-area-inset-top)); }
-    .msg { max-width: 84%; }
+    .msg-wrap { max-width: 84%; }
   }
 `
 
@@ -350,7 +354,7 @@ export default function ChatWidget() {
             return (
               <div key={i} className={`msg-row ${isUser ? 'user' : 'bot'}`}>
                 <div className="msg-avatar">{isUser ? 'You' : 'AI'}</div>
-                <div>
+                <div className="msg-wrap">
                   <div className={`msg ${isUser ? 'user' : 'bot'}`}>
                     {isTyping
                       ? <div className="typing-dots"><span/><span/><span/></div>
