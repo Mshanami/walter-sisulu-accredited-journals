@@ -90,6 +90,20 @@ export default async function handler(req, res) {
     input = msgs
   }
 
+  // Trim base64 file data from older messages (keep only the latest) to avoid huge payloads
+  if (Array.isArray(input)) {
+    const lastFileIdx = input.reduce((last, m, i) => {
+      if (Array.isArray(m.content) && m.content.some(c => c.type === 'input_file')) return i
+      return last
+    }, -1)
+    input = input.map((m, i) => {
+      if (i < lastFileIdx && Array.isArray(m.content)) {
+        return { ...m, content: m.content.map(c => c.type === 'input_file' ? { type: 'input_text', text: `[Previously uploaded file: ${c.filename}]` } : c) }
+      }
+      return m
+    })
+  }
+
   try {
     const upstream = await fetch(AZURE_ENDPOINT, {
       method: 'POST',

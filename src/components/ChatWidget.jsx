@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MessageCircle, X, Send, BookOpen, Trash2 } from 'lucide-react'
+import { MessageCircle, X, Send, BookOpen, Trash2, Paperclip, FileText, XCircle } from 'lucide-react'
 
 const PROXY_URL = '/api/chat'
 
@@ -197,6 +197,30 @@ const css = `
 
   .msg-wrap { max-width: 72%; }
 
+  .upload-btn {
+    background: none; border: 1.5px solid #E4DFD6; border-radius: 50%;
+    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: #B0A89A; flex-shrink: 0; transition: all .15s;
+  }
+  .upload-btn:hover { border-color: #CF8029; color: #CF8029; background: #FEF9F0; }
+  .upload-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .file-preview {
+    display: flex; align-items: center; gap: 8px;
+    background: #FEF9F0; border: 1.5px solid #E0A35E; border-radius: 10px;
+    padding: 8px 12px; margin: 6px 14px 0;
+    font-family: Inter, sans-serif; font-size: .8rem; color: #6E6660;
+  }
+  .file-preview .fp-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #2B2926; font-weight: 600; }
+  .file-preview .fp-size { flex-shrink: 0; color: #B0A89A; }
+  .file-remove { background: none; border: none; cursor: pointer; color: #B0A89A; display: flex; padding: 0; transition: color .15s; }
+  .file-remove:hover { color: #A02124; }
+  .msg-file {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.15); border-radius: 8px;
+    padding: 7px 10px; margin-bottom: 6px; font-size: .8rem;
+  }
+  .msg-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   @media (max-width: 480px) {
     .chat-fab { bottom: 18px; right: 18px; width:56px; height:56px; }
     .chat-panel {
@@ -239,6 +263,8 @@ export default function ChatWidget() {
   const history                = useRef([])
   const msgsEl                 = useRef(null)
   const inputEl                = useRef(null)
+  const fileInputEl            = useRef(null)
+  const [pendingFile, setPendingFile] = useState(null) // { name, size, type, base64 }
 
   // Rebuild API history from saved msgs on mount
   useEffect(() => {
@@ -286,13 +312,59 @@ export default function ChatWidget() {
     }
   }, [])
 
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = e => resolve(e.target.result.split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const maxMB = 10
+    if (file.size > maxMB * 1024 * 1024) {
+      alert(`File too large — maximum ${maxMB}MB allowed.`)
+      return
+    }
+    const allowed = ['application/pdf','image/jpeg','image/png','image/webp','image/gif']
+    if (!allowed.includes(file.type)) {
+      alert('Supported file types: PDF, JPG, PNG, WEBP, GIF.')
+      return
+    }
+    readFileAsBase64(file).then(base64 => {
+      setPendingFile({ name: file.name, size: file.size, type: file.type, base64 })
+    }).catch(() => alert('Could not read file. Please try again.'))
+    e.target.value = ''
+  }
+
+  function fmtBytes(b) {
+    return b < 1024 ? `${b}B` : b < 1048576 ? `${(b/1024).toFixed(1)}KB` : `${(b/1048576).toFixed(1)}MB`
+  }
+
   async function send(text) {
     const q = (text || input).trim()
-    if (!q || loading) return
+    if ((!q && !pendingFile) || loading) return
     setInput('')
-    const userMsg = { role: 'user', text: q, ts: Date.now() }
+    const file = pendingFile
+    setPendingFile(null)
+
+    const userMsg = { role: 'user', text: q || `📎 ${file?.name}`, ts: Date.now(), file }
     setMsgs(m => [...m, userMsg])
-    history.current.push({ role: 'user', content: q })
+
+    // Build API content — text + optional file
+    let userContent
+    if (file) {
+      userContent = [
+        { type: 'input_file', filename: file.name, file_data: `data:${file.type};base64,${file.base64}` },
+        ...(q ? [{ type: 'input_text', text: q }] : [{ type: 'input_text', text: 'Please analyse this file and help me with any library-related questions about it.' }])
+      ]
+    } else {
+      userContent = q
+    }
+    history.current.push({ role: 'user', content: userContent })
     setLoading(true)
     setMsgs(m => [...m, { role: 'bot typing', text: '', ts: null }])
 
@@ -300,7 +372,7 @@ export default function ChatWidget() {
       const res  = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: history.current, model: 'gpt-4o' })
+        body: JSON.stringify({ input: history.current })
       })
       const data = await res.json()
 
@@ -356,9 +428,20 @@ export default function ChatWidget() {
                 <div className="msg-avatar">{isUser ? 'You' : 'AI'}</div>
                 <div className="msg-wrap">
                   <div className={`msg ${isUser ? 'user' : 'bot'}`}>
-                    {isTyping
-                      ? <div className="typing-dots"><span/><span/><span/></div>
-                      : renderMarkdown(m.text)}
+                    {isTyping ? (
+                      <div className="typing-dots"><span/><span/><span/></div>
+                    ) : (
+                      <>
+                        {m.file && (
+                          <div className="msg-file">
+                            <FileText size={14} style={{flexShrink:0}}/>
+                            <span>{m.file.name}</span>
+                            <span style={{opacity:.6,flexShrink:0}}>{fmtBytes(m.file.size)}</span>
+                          </div>
+                        )}
+                        {renderMarkdown(m.text === `📎 ${m.file?.name}` ? '' : m.text)}
+                      </>
+                    )}
                   </div>
                   {!isTyping && m.ts && (
                     <div style={{ fontSize:'.68rem', color:'#B0A89A', marginTop:3, textAlign: isUser ? 'right' : 'left', paddingLeft: isUser ? 0 : 2, paddingRight: isUser ? 2 : 0 }}>
@@ -389,18 +472,44 @@ export default function ChatWidget() {
           })}
         </div>
 
+        {pendingFile && (
+          <div className="file-preview">
+            <FileText size={15} style={{flexShrink:0, color:'#CF8029'}}/>
+            <span className="fp-name">{pendingFile.name}</span>
+            <span className="fp-size">{fmtBytes(pendingFile.size)}</span>
+            <button className="file-remove" onClick={() => setPendingFile(null)} aria-label="Remove file">
+              <XCircle size={15}/>
+            </button>
+          </div>
+        )}
         <div className="chat-input-row">
+          <input
+            type="file"
+            ref={fileInputEl}
+            accept=".pdf,image/*"
+            style={{display:'none'}}
+            onChange={handleFileSelect}
+          />
+          <button
+            className="upload-btn"
+            onClick={() => fileInputEl.current?.click()}
+            disabled={loading}
+            aria-label="Attach file"
+            title="Attach PDF or image"
+          >
+            <Paperclip size={16}/>
+          </button>
           <input
             ref={inputEl}
             className="chat-input"
             type="text"
-            placeholder="Message the agent…"
+            placeholder={pendingFile ? 'Add a message or send file…' : 'Message the agent…'}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             maxLength={500}
           />
-          <button className="chat-send" onClick={() => send()} disabled={loading} aria-label="Send message">
+          <button className="chat-send" onClick={() => send()} disabled={loading || (!input.trim() && !pendingFile)} aria-label="Send message">
             <Send size={16} />
           </button>
         </div>
