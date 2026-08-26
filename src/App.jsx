@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { Search } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Search, X, AlertCircle } from 'lucide-react'
 import ChatWidget from './components/ChatWidget'
  
  
@@ -20,9 +20,13 @@ const s = {
   row:        { display:'flex', gap:10, flexWrap:'wrap' },
   inputWrap:  { flex:1, minWidth:200, position:'relative', display:'flex', alignItems:'center' },
   searchIcon: { position:'absolute', left:14, color:'var(--grey)', pointerEvents:'none' },
-  input:      { width:'100%', padding:'12px 14px 12px 42px', fontSize:'1rem', border:'2px solid var(--grey-light)', borderRadius:5, fontFamily:'Inter, sans-serif', outline:'none' },
+  input:      { width:'100%', padding:'12px 40px 12px 42px', fontSize:'1rem', border:'2px solid var(--grey-light)', borderRadius:5, fontFamily:'Inter, sans-serif', outline:'none' },
+  clearBtn:   { position:'absolute', right:10, background:'none', border:'none', cursor:'pointer', color:'var(--grey)', display:'flex', alignItems:'center', padding:4, borderRadius:'50%' },
   select:     { padding:'12px 14px', border:'2px solid var(--grey-light)', borderRadius:5, fontFamily:'Inter, sans-serif', background:'var(--white)', color:'var(--charcoal)', fontSize:'0.92rem' },
   hint:       { fontSize:'0.8rem', color:'var(--grey)', marginTop:10 },
+  loadingBar: { fontSize:'0.8rem', color:'var(--grey)', marginTop:10, display:'flex', alignItems:'center', gap:8 },
+  errorBox:   { display:'flex', alignItems:'center', gap:10, background:'#FDEFEF', border:'1px solid var(--red)', color:'var(--red)', borderRadius:6, padding:'12px 16px', marginTop:16, fontSize:'0.88rem' },
+  mark:       { background:'var(--ochre-light)', color:'var(--charcoal)', borderRadius:2, padding:'0 1px' },
  
   // Stats
   statsRow:   { display:'flex', gap:14, marginTop:22, flexWrap:'wrap' },
@@ -50,6 +54,20 @@ const s = {
   footerSpan: { color:'var(--ochre-light)' },
 }
  
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function Highlight({ text, query }) {
+  if (!query.trim()) return text
+  const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, 'gi'))
+  return parts.map((part, i) =>
+    part.toLowerCase() === query.toLowerCase()
+      ? <mark key={i} style={s.mark}>{part}</mark>
+      : part
+  )
+}
+
 function Badge({ qualify }) {
   if (qualify === 'Yes') return <span style={s.badgeYes}>Accredited</span>
   if (qualify === 'No')  return <span style={s.badgeNo}>Not Accredited</span>
@@ -82,37 +100,54 @@ function Stats({ data }) {
 export default function App() {
   const [query, setQuery]     = useState('')
   const [type, setType]       = useState('title')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [results, setResults] = useState(null)
   const [data, setData]       = useState([])
- 
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+
   // Load journal data from public/journals_data.json
   useEffect(() => {
     fetch('journals_data.json')
-      .then(r => r.json())
-      .then(setData)
-      .catch(err => console.error('Failed to load journal data:', err))
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(d => { setData(d); setLoading(false) })
+      .catch(err => {
+        console.error('Failed to load journal data:', err)
+        setLoadError(true)
+        setLoading(false)
+      })
   }, [])
- 
-  const search = useCallback((q, t) => {
-    if (!q.trim()) { setResults(null); return }
-    const lower = q.toLowerCase()
-    if (t === 'issn') {
-      const qn = lower.replace(/[^0-9x]/g, '')
-      setResults(data.filter(r => {
+
+  const search = useCallback((q, t, st) => {
+    if (!q.trim() && st === 'all') { setResults(null); return }
+    let filtered
+    if (q.trim() && t === 'issn') {
+      const qn = q.toLowerCase().replace(/[^0-9x]/g, '')
+      filtered = data.filter(r => {
         const issn  = (r[1] || '').replace(/[^0-9x]/g, '')
         const eissn = (r[2] || '').replace(/[^0-9x]/g, '')
         return (issn && issn.includes(qn)) || (eissn && eissn.includes(qn))
-      }))
+      })
+    } else if (q.trim()) {
+      const lower = q.toLowerCase()
+      filtered = data.filter(r => r[0] && r[0].toLowerCase().includes(lower))
     } else {
-      setResults(data.filter(r => r[0] && r[0].toLowerCase().includes(lower)))
+      filtered = data
     }
+    if (st !== 'all') filtered = filtered.filter(r => r[4] === st)
+    setResults(filtered)
   }, [data])
- 
+
   useEffect(() => {
-    const t = setTimeout(() => search(query, type), 120)
+    const t = setTimeout(() => search(query, type, statusFilter), 120)
     return () => clearTimeout(t)
-  }, [query, type, search])
- 
+  }, [query, type, statusFilter, search])
+
+  const resultsSummary = useMemo(() => {
+    if (results === null) return ''
+    return `${results.length.toLocaleString()} result${results.length !== 1 ? 's' : ''} found`
+  }, [results])
+
   return (
     <div style={s.page}>
       {/* Header */}
@@ -130,50 +165,77 @@ export default function App() {
       <main style={s.main}>
         {/* Search card */}
         <div style={s.card}>
-          <label style={s.label}>Search by journal title or ISSN / eISSN</label>
+          <label style={s.label} htmlFor="journal-search">Search by journal title or ISSN / eISSN</label>
           <div style={s.row}>
             <div style={s.inputWrap}>
               <Search size={17} style={s.searchIcon} />
               <input
+                id="journal-search"
                 style={s.input}
                 type="text"
                 placeholder="e.g. South African Journal of Science, or 0038-2353"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 autoComplete="off"
+                disabled={loading || loadError}
               />
+              {query && (
+                <button
+                  type="button"
+                  style={s.clearBtn}
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                  title="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
-            <select style={s.select} value={type} onChange={e => setType(e.target.value)}>
+            <select style={s.select} value={type} onChange={e => setType(e.target.value)} aria-label="Search by">
               <option value="title">Title</option>
               <option value="issn">ISSN / eISSN</option>
             </select>
+            <select style={s.select} value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by accreditation status">
+              <option value="all">All statuses</option>
+              <option value="Yes">Accredited</option>
+              <option value="No">Not Accredited</option>
+            </select>
           </div>
-          <p style={s.hint}>Start typing — results update as you go. Source: DHET Master Journal List.</p>
+          {loading ? (
+            <p style={s.loadingBar}>Loading the DHET journal list…</p>
+          ) : loadError ? (
+            <div style={s.errorBox}>
+              <AlertCircle size={16} style={{ flexShrink:0 }} />
+              Couldn't load the journal list. Please refresh the page or try again shortly.
+            </div>
+          ) : (
+            <p style={s.hint}>Start typing — results update as you go. Source: DHET Master Journal List.</p>
+          )}
         </div>
- 
+
         {/* Results */}
-        {results === null ? (
+        {loading || loadError ? null : results === null ? (
           <>
             <p style={{ ...s.empty, paddingTop:40 }}>Search for a journal above to check its DHET accreditation status.</p>
             {data.length > 0 && <Stats data={data} />}
           </>
         ) : results.length === 0 ? (
-          <p style={s.empty}>No journal found matching "{query}". Try a partial title or search by ISSN.</p>
+          <p style={s.empty} role="status">No journal found matching "{query}". Try a partial title or search by ISSN.</p>
         ) : (
           <>
-            <p style={s.count}>{results.length.toLocaleString()} result{results.length !== 1 ? 's' : ''} found</p>
+            <p style={s.count} role="status" aria-live="polite">{resultsSummary}</p>
             {results.slice(0, 100).map((r, i) => {
-              const [title, issn, eissn, status, qualify, publisher] = r
+              const [title, issn, eissn, dhetStatus, qualify, publisher] = r
               return (
                 <div key={i} style={s.resultCard}>
                   <div style={{ flex:1, minWidth:240 }}>
-                    <p style={s.resultTitle}>{title}</p>
+                    <p style={s.resultTitle}><Highlight text={title} query={type === 'title' ? query : ''} /></p>
                     <div style={s.resultMeta}>
                       {issn  && <><span style={s.metaB}>ISSN:</span> {issn}&nbsp;&nbsp;</>}
                       {eissn && <><span style={s.metaB}>eISSN:</span> {eissn}<br /></>}
                       {!eissn && <br />}
                       {publisher && <><span style={s.metaB}>Publisher:</span> {publisher}<br /></>}
-                      {status    && <><span style={s.metaB}>Status:</span> {status}</>}
+                      {dhetStatus && <><span style={s.metaB}>Status:</span> {dhetStatus}</>}
                     </div>
                   </div>
                   <Badge qualify={qualify} />
