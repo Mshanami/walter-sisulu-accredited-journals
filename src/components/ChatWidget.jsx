@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MessageCircle, X, Send, BookOpen, Trash2, Paperclip, FileText, XCircle } from 'lucide-react'
+import { MessageCircle, X, Send, BookOpen, Trash2, Paperclip, FileText, XCircle, Mail } from 'lucide-react'
 
 const PROXY_URL = '/api/chat'
 
+// Kept in sync with the escalation contact in api/chat.js's SYSTEM_PROMPT
+const LIBRARIAN_EMAIL = 'lmdanyana@wsu.ac.za'
+const MAILTO_MAX_LEN = 1800 // stay well under mail-client URL limits (Outlook caps ~2000)
+
 const CHIPS = [
-  { label: 'iWS Libraries',  prompt: 'Tell me about the iYunivesithi Walter Sisulu Libraries — locations, hours, and services.' },
-  { label: 'LibGuides page', prompt: 'What resources are available on the iWS LibGuides page?' },
-  { label: 'Research tools', prompt: 'What research tools does iWS Library offer for students and researchers?' },
+  { label: 'Walter Sisulu Libraries',  prompt: 'Tell me about the Walter Sisulu Libraries — locations, hours, and services.' },
+  { label: 'LibGuides page', prompt: 'What resources are available on the Walter Sisulu LibGuides page?' },
+  { label: 'Research tools', prompt: 'What research tools does Walter Sisulu Library offer for students and researchers?' },
 ]
 
 function renderMarkdown(text) {
@@ -109,6 +113,23 @@ const css = `
     transition: background .15s, color .15s; position:relative; z-index:1; flex-shrink:0;
   }
   .chat-clear:hover { background: rgba(207,128,41,.3); color:#fff; }
+  .chat-email {
+    background: rgba(255,255,255,.12); border:none; color:rgba(255,255,255,.7);
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    width:30px; height:30px; border-radius:50%; text-decoration:none;
+    transition: background .15s, color .15s; position:relative; z-index:1; flex-shrink:0;
+  }
+  .chat-email:hover { background: rgba(207,128,41,.3); color:#fff; }
+
+  .escalate-row {
+    display: flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-family: Inter, sans-serif; font-size: .78rem;
+    color: #A02124; text-decoration: none; font-weight: 600;
+    border: 1.5px solid #F0C0C0; background: #FDEFEF;
+    border-radius: 10px; padding: 7px 11px; width: fit-content;
+    transition: all .15s;
+  }
+  .escalate-row:hover { background: #A02124; color: #fff; border-color: #A02124; }
 
   .chat-chips { display:flex; gap:7px; padding:12px 14px; overflow-x:auto; scrollbar-width:none; }
   .chat-chips::-webkit-scrollbar { display:none; }
@@ -253,6 +274,38 @@ function fmt(ts) {
   if (!ts) return ''
   const d = new Date(ts)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+// Plain-text transcript for the mailto body — newest messages first so they
+// survive truncation, since mail-client URL length limits are tight.
+function buildTranscript(msgs, upToIndex) {
+  const relevant = msgs
+    .slice(0, upToIndex === undefined ? msgs.length : upToIndex + 1)
+    .filter(m => m.role === 'user' || m.role === 'bot')
+
+  const lines = relevant.map(m => {
+    const who = m.role === 'user' ? 'Student' : 'LibAI'
+    const time = m.ts ? `[${fmt(m.ts)}] ` : ''
+    const fileNote = m.file ? ` (attached: ${m.file.name})` : ''
+    return `${time}${who}:${fileNote} ${m.text}`
+  })
+
+  let body = lines.join('\n\n')
+  let truncated = false
+  while (body.length > MAILTO_MAX_LEN && lines.length > 1) {
+    lines.shift()
+    truncated = true
+    body = lines.join('\n\n')
+  }
+  if (truncated) body = '[Earlier messages omitted for length]\n\n' + body
+  return body
+}
+
+function buildMailtoUrl(msgs, upToIndex) {
+  const subject = `LibAI Chat — question from a student (${new Date().toLocaleDateString()})`
+  const intro = `A student's LibAI chat is below. They may need a follow-up.\n\n---\n\n`
+  const body = intro + buildTranscript(msgs, upToIndex)
+  return `mailto:${LIBRARIAN_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
 export default function ChatWidget() {
@@ -404,9 +457,17 @@ export default function ChatWidget() {
         <div className="chat-hdr">
           <div className="chat-avatar"><BookOpen size={19} /></div>
           <div className="chat-hdr-text">
-            <div className="chat-hdr-title">iWS LibAI Assistant</div>
+            <div className="chat-hdr-title">Walter Sisulu LibAI Assistant</div>
             <div className="chat-hdr-sub"><span className="live-dot" />iYunivesithi Walter Sisulu Library</div>
           </div>
+          <a
+            className="chat-email"
+            href={buildMailtoUrl(msgs)}
+            aria-label="Email this conversation to a librarian"
+            title="Email this conversation to a librarian"
+          >
+            <Mail size={14}/>
+          </a>
           <button className="chat-clear" onClick={clearChat} aria-label="Clear chat history" title="Clear chat">
             <Trash2 size={14}/>
           </button>
@@ -465,6 +526,14 @@ export default function ChatWidget() {
                             title="Not helpful"
                           >👎</button>
                         </div>
+                  )}
+                  {!isUser && !isTyping && m.role === 'bot' && m.text?.includes(LIBRARIAN_EMAIL) && (
+                    <a
+                      className="escalate-row"
+                      href={buildMailtoUrl(msgs, i)}
+                    >
+                      <Mail size={13}/> Email this conversation to a librarian
+                    </a>
                   )}
                 </div>
               </div>
