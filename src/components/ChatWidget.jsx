@@ -10,7 +10,7 @@ const MAILTO_MAX_LEN = 1800 // stay well under mail-client URL limits (Outlook c
 const CHIPS = [
   { label: 'Walter Sisulu Libraries',  prompt: 'Tell me about the Walter Sisulu Libraries — locations, hours, and services.' },
   { label: 'LibGuides page', prompt: 'What resources are available on the Walter Sisulu LibGuides page?' },
-  { label: 'Research tools', prompt: 'What research tools does Walter Sisulu Library offer for students and researchers?' },
+  { label: 'Research tools', prompt: 'What research tools does Walter Sisulu Library and Information Services offer for students and researchers?' },
 ]
 
 function renderMarkdown(text) {
@@ -257,7 +257,7 @@ const css = `
 `
 
 const STORAGE_KEY = 'iws-libai-chat'
-const WELCOME = { role: 'bot', text: "Hi! 👋 I'm LibAI, the iYunivesithi Walter Sisulu Library Assistant.\n\nI can help you with library hours, borrowing, databases, research support, and more. How can I assist you today?", ts: Date.now() }
+const WELCOME = { role: 'bot', text: "Hi! 👋 I'm LibAI, the iYunivesithi Walter Sisulu Library and Information Services Assistant.\n\nI can help you with library hours, borrowing, databases, research support, and more. How can I assist you today?", ts: Date.now() }
 
 function loadSaved() {
   try {
@@ -458,7 +458,7 @@ export default function ChatWidget() {
           <div className="chat-avatar"><BookOpen size={19} /></div>
           <div className="chat-hdr-text">
             <div className="chat-hdr-title">Walter Sisulu LibAI Assistant</div>
-            <div className="chat-hdr-sub"><span className="live-dot" />iYunivesithi Walter Sisulu Library</div>
+            <div className="chat-hdr-sub"><span className="live-dot" />iYunivesithi Walter Sisulu Library and Information Services</div>
           </div>
           <a
             className="chat-email"
