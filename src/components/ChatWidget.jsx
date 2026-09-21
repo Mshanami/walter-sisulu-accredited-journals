@@ -450,10 +450,12 @@ export default function ChatWidget() {
     <>
       <style>{css}</style>
 
-      <button className="chat-fab" onClick={() => setOpen(o => !o)} title="Ask LibAI" aria-label="Open chat with LibAI">
-        {open ? <X size={24} /> : <MessageCircle size={24} />}
-        {!open && <span className="pulse" />}
-      </button>
+      {!open && (
+        <button className="chat-fab" onClick={() => setOpen(true)} title="Ask LibAI" aria-label="Open chat with LibAI">
+          <MessageCircle size={24} />
+          <span className="pulse" />
+        </button>
+      )}
 
       <div className={`chat-panel${open ? '' : ' hidden'}`} role="dialog" aria-label="LibAI chat">
         <div className="chat-hdr">

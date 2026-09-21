@@ -94,6 +94,7 @@ const CAMPUSES = {
 
 function detectCampus(messages) {
   for (const msg of [...messages].reverse()) {
+    if (msg.role !== 'user') continue
     const text = (typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content || '')).toLowerCase()
     for (const [name, aliases] of Object.entries(CAMPUSES)) {
       if (aliases.some(a => text.includes(a))) return name
