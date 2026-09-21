@@ -193,6 +193,8 @@ const css = `
     transition: border-color .15s, box-shadow .15s;
   }
   .chat-input:focus { border-color:#CF8029; box-shadow: 0 0 0 3px rgba(207,128,41,.12); }
+  .chat-input::-ms-clear, .chat-input::-ms-reveal { display: none; width: 0; height: 0; }
+  .chat-input::-webkit-search-cancel-button { display: none; }
   .chat-send {
     background: linear-gradient(145deg, #6B1B1D, #551516); border:none; border-radius:50%;
     width:40px; height:40px; display:flex; align-items:center; justify-content:center;
