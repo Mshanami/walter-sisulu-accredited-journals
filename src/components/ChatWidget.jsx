@@ -324,7 +324,7 @@ export default function ChatWidget() {
   // Rebuild API history from saved msgs on mount
   useEffect(() => {
     history.current = msgs
-      .filter(m => m.role === 'user' || m.role === 'bot')
+      .filter(m => (m.role === 'user' || m.role === 'bot') && m.text !== WELCOME.text)
       .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.text }))
   }, [])
 
