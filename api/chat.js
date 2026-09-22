@@ -144,24 +144,75 @@ export default async function handler(req, res) {
     }
   }
 
+  let upstream
   try {
-    const upstream = await fetch(AZURE_ENDPOINT, {
+    upstream = await fetch(AZURE_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
       body: JSON.stringify({
         model: MODEL,
         instructions: SYSTEM_PROMPT,
         input: msgs,
+        stream: true,
       }),
     })
-
-    const text = await upstream.text()
-    let data
-    try { data = JSON.parse(text) } catch { data = { raw: text } }
-
-    return res.status(upstream.status).json(data)
   } catch (err) {
     console.error('Proxy error:', err)
     return res.status(502).json({ error: 'Failed to reach Azure AI.', detail: err.message })
   }
+
+  // Azure returned an error (or a non-streaming body) — surface it as plain JSON, same as before.
+  if (!upstream.ok || !upstream.body) {
+    const text = await upstream.text().catch(() => '')
+    let data
+    try { data = JSON.parse(text) } catch { data = { raw: text } }
+    return res.status(upstream.status || 502).json(data)
+  }
+
+  // Relay Azure's SSE stream to the client as it arrives, re-emitting a
+  // minimal { delta } / { error } wire format so the frontend doesn't need
+  // to know the exact shape of Azure's Responses API events.
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  })
+
+  const reader = upstream.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const events = buffer.split('\n\n')
+      buffer = events.pop() // keep the last, possibly-incomplete event for next chunk
+
+      for (const evt of events) {
+        const dataLines = evt.split('\n').filter(l => l.startsWith('data:'))
+        if (!dataLines.length) continue
+        const payload = dataLines.map(l => l.slice(5).trim()).join('\n')
+        if (!payload || payload === '[DONE]') continue
+
+        let parsed
+        try { parsed = JSON.parse(payload) } catch { continue }
+
+        const isTextDelta = typeof parsed.delta === 'string' && (!parsed.type || parsed.type.includes('output_text.delta'))
+        if (isTextDelta) {
+          res.write(`data: ${JSON.stringify({ delta: parsed.delta })}\n\n`)
+        } else if (parsed.type === 'response.failed' || parsed.type === 'error' || parsed.error) {
+          const message = parsed.response?.error?.message || parsed.error?.message || parsed.message || 'Upstream error'
+          res.write(`data: ${JSON.stringify({ error: message })}\n\n`)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Stream relay error:', err)
+    res.write(`data: ${JSON.stringify({ error: 'Stream interrupted.' })}\n\n`)
+  }
+
+  res.write('data: [DONE]\n\n')
+  res.end()
 }

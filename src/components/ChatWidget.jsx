@@ -423,23 +423,47 @@ export default function ChatWidget() {
     setLoading(true)
     setMsgs(m => [...m, { role: 'bot typing', text: '', ts: null }])
 
+    let streamed = ''
+
     try {
-      const res  = await fetch(PROXY_URL, {
+      const res = await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: history.current })
       })
-      const data = await res.json()
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
 
-      const reply =
-        data?.output?.find?.(o => o.type === 'message')
-          ?.content?.find?.(c => c.type === 'output_text' || c.type === 'text')?.text ||
-        data?.output?.[0]?.content?.[0]?.text ||
-        data?.choices?.[0]?.message?.content ||
-        (data ? `[Unexpected format: ${JSON.stringify(data).slice(0, 200)}]` : 'Sorry, no response received.')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
 
-      history.current.push({ role: 'assistant', content: reply })
-      setMsgs(m => [...m.slice(0, -1), { role: 'bot', text: reply, ts: Date.now() }])
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() // keep the last, possibly-incomplete event for next chunk
+
+        for (const evt of events) {
+          const dataLine = evt.split('\n').find(l => l.startsWith('data:'))
+          if (!dataLine) continue
+          const payload = dataLine.slice(5).trim()
+          if (!payload || payload === '[DONE]') continue
+
+          let parsed
+          try { parsed = JSON.parse(payload) } catch { continue }
+          if (parsed.error) throw new Error(parsed.error)
+          if (typeof parsed.delta === 'string') {
+            streamed += parsed.delta
+            setMsgs(m => [...m.slice(0, -1), { role: 'bot', text: streamed, ts: null }])
+          }
+        }
+      }
+
+      if (!streamed) throw new Error('Empty response')
+
+      history.current.push({ role: 'assistant', content: streamed })
+      setMsgs(m => [...m.slice(0, -1), { role: 'bot', text: streamed, ts: Date.now() }])
     } catch {
       setMsgs(m => [...m.slice(0, -1), { role: 'bot', text: '⚠️ Could not reach the assistant. Please check your connection.', ts: Date.now() }])
     }
