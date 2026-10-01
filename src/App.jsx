@@ -86,7 +86,7 @@ function Stats({ data }) {
     { num: publishers, lbl: 'Publishers',        border: 'var(--ochre)' },
   ]
   return (
-    <div style={s.statsRow}>
+    <div className="stats-row" style={s.statsRow}>
       {boxes.map(b => (
         <div key={b.lbl} style={{ ...s.statBox, borderTop:`4px solid ${b.border}` }}>
           <div style={s.statNum}>{b.num.toLocaleString()}</div>
@@ -162,7 +162,7 @@ export default function App() {
       </header>
  
       {/* Main */}
-      <main style={s.main}>
+      <main className="page-main" style={s.main}>
         {/* Search card */}
         <div style={s.card}>
           <label style={s.label} htmlFor="journal-search">Search by journal title or ISSN / eISSN</label>
@@ -191,11 +191,11 @@ export default function App() {
                 </button>
               )}
             </div>
-            <select style={s.select} value={type} onChange={e => setType(e.target.value)} aria-label="Search by">
+            <select className="search-select" style={s.select} value={type} onChange={e => setType(e.target.value)} aria-label="Search by">
               <option value="title">Title</option>
               <option value="issn">ISSN / eISSN</option>
             </select>
-            <select style={s.select} value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by accreditation status">
+            <select className="search-select" style={s.select} value={statusFilter} onChange={e => setStatusFilter(e.target.value)} aria-label="Filter by accreditation status">
               <option value="all">All statuses</option>
               <option value="Yes">Accredited</option>
               <option value="No">Not Accredited</option>

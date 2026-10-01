@@ -95,10 +95,13 @@ const css = `
     flex-shrink:0; box-shadow: 0 2px 8px rgba(0,0,0,.2);
     position: relative; z-index: 1;
   }
-  .chat-hdr-text { flex:1; position: relative; z-index: 1; }
-  .chat-hdr-title { font-size:.95rem; font-weight:700; letter-spacing:.2px; }
-  .chat-hdr-sub { font-size:.72rem; color:rgba(255,255,255,.65); margin-top:2px; display:flex; align-items:center; gap:5px; }
-  .chat-hdr-sub .live-dot { width:6px; height:6px; border-radius:50%; background:#7FBF7F; box-shadow:0 0 6px #7FBF7F; }
+  .chat-hdr-text { flex:1; min-width: 0; position: relative; z-index: 1; }
+  .chat-hdr-title { font-size:.95rem; font-weight:700; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chat-hdr-title .title-short { display: none; }
+  .chat-hdr-sub { font-size:.72rem; color:rgba(255,255,255,.65); margin-top:2px; display:flex; align-items:center; gap:5px; min-width: 0; }
+  .chat-hdr-sub .live-dot { width:6px; height:6px; border-radius:50%; background:#7FBF7F; box-shadow:0 0 6px #7FBF7F; flex-shrink:0; }
+  .chat-hdr-sub .sub-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chat-hdr-sub .sub-short { display: none; }
   .chat-close {
     background: rgba(255,255,255,.12); border:none; color:#fff;
     cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -253,7 +256,11 @@ const css = `
       box-shadow: none; transform-origin: center;
     }
     .chat-panel.hidden { transform: translateY(24px) scale(.97); opacity: 0; }
-    .chat-hdr { padding-top: max(18px, env(safe-area-inset-top)); }
+    .chat-hdr { padding-top: max(18px, env(safe-area-inset-top)); gap: 8px; }
+    .chat-avatar { width: 34px; height: 34px; }
+    .chat-email, .chat-clear, .chat-close { width: 28px; height: 28px; }
+    .chat-hdr-title .title-full, .chat-hdr-sub .sub-full { display: none; }
+    .chat-hdr-title .title-short, .chat-hdr-sub .sub-short { display: inline; }
     .msg-wrap { max-width: 84%; }
   }
 `
@@ -485,8 +492,17 @@ export default function ChatWidget() {
         <div className="chat-hdr">
           <div className="chat-avatar"><BookOpen size={19} /></div>
           <div className="chat-hdr-text">
-            <div className="chat-hdr-title">Walter Sisulu LibAI Assistant</div>
-            <div className="chat-hdr-sub"><span className="live-dot" />iYunivesithi Walter Sisulu Library and Information Services</div>
+            <div className="chat-hdr-title">
+              <span className="title-full">Walter Sisulu LibAI Assistant</span>
+              <span className="title-short">LibAI Assistant</span>
+            </div>
+            <div className="chat-hdr-sub">
+              <span className="live-dot" />
+              <span className="sub-text">
+                <span className="sub-full">iYunivesithi Walter Sisulu Library and Information Services</span>
+                <span className="sub-short">Library and Information Services</span>
+              </span>
+            </div>
           </div>
           <a
             className="chat-email"
