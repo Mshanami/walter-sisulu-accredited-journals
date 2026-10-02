@@ -328,6 +328,13 @@ export default function ChatWidget() {
   const fileInputEl            = useRef(null)
   const [pendingFile, setPendingFile] = useState(null) // { name, size, type, base64 }
 
+  // Tell an embedding parent page (see public/embed.js) whether the panel is
+  // open, so it can resize the iframe it put us in. A no-op standalone.
+  useEffect(() => {
+    if (window.parent === window) return
+    window.parent.postMessage({ source: 'libai-widget', open }, '*')
+  }, [open])
+
   // Rebuild API history from saved msgs on mount
   useEffect(() => {
     history.current = msgs
