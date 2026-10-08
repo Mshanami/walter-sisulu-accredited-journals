@@ -1,10 +1,15 @@
 /**
  * LibAI embed loader.
  *
+ * Deliberately named something other than "embed.js" or "widget.js" — those
+ * are common ad/tracker filenames that some content blockers pattern-match
+ * and remove from the page shortly after it loads, which looked like the
+ * teaser bubble "disappearing" a second or two after it appeared.
+ *
  * Usage — paste this one line wherever the host page allows a <script> tag
  * (a LibGuides "Rich Text/HTML" box, a site's Custom JS, etc.):
  *
- *   <script src="https://walter-sisulu-accredited-journals.vercel.app/embed.js"></script>
+ *   <script src="https://walter-sisulu-accredited-journals.vercel.app/libai-loader.js"></script>
  *
  * Mounts the LibAI chat bubble as a small fixed iframe in the bottom-right
  * corner of whatever page includes this script, growing the iframe to fit
@@ -20,7 +25,7 @@
   var OPEN_SIZE   = { width: '420px', height: '700px' }
 
   var scriptEl = document.currentScript
-  var origin = scriptEl && scriptEl.src ? scriptEl.src.replace(/\/embed\.js(?:\?.*)?$/, '') : window.location.origin
+  var origin = scriptEl && scriptEl.src ? scriptEl.src.replace(/\/libai-loader\.js(?:\?.*)?$/, '') : window.location.origin
 
   var iframe = document.createElement('iframe')
   iframe.src = origin + '/widget.html'
