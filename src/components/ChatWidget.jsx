@@ -60,6 +60,28 @@ const css = `
   }
   @keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.25); opacity:.7; } }
 
+  .chat-teaser {
+    position: fixed; bottom: 30px; right: 96px; max-width: 250px;
+    background: #fff; border-radius: 16px; padding: 12px 32px 12px 12px;
+    box-shadow: 0 10px 28px rgba(43,41,38,.2), 0 2px 8px rgba(43,41,38,.08);
+    display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+    z-index: 999; font-family: Inter, sans-serif; border: 1px solid #EDE8DF;
+    animation: teaserIn .35s cubic-bezier(.22,1,.36,1);
+  }
+  @keyframes teaserIn { from { opacity:0; transform: translateX(10px) scale(.95); } to { opacity:1; transform: translateX(0) scale(1); } }
+  .chat-teaser-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(145deg, #CF8029, #B45736);
+    display: flex; align-items: center; justify-content: center; color: #fff;
+  }
+  .chat-teaser-text { font-size: .83rem; line-height: 1.45; color: #2B2926; padding-top: 2px; }
+  .chat-teaser-close {
+    position: absolute; top: 6px; right: 6px; background: none; border: none;
+    color: #B0A89A; cursor: pointer; display: flex; padding: 4px; border-radius: 50%;
+    transition: background .15s, color .15s;
+  }
+  .chat-teaser-close:hover { background: #F7F3EA; color: #551516; }
+
   .chat-panel {
     position: fixed; top: 0; right: 0; bottom: 0;
     width: 50vw; min-width: 360px; max-width: 680px;
@@ -249,6 +271,7 @@ const css = `
 
   @media (max-width: 480px) {
     .chat-fab { bottom: 18px; right: 18px; width:56px; height:56px; }
+    .chat-teaser { bottom: 24px; right: 84px; max-width: calc(100vw - 120px); }
     .chat-panel {
       top: 0; bottom: 0; right: 0; left: 0;
       width: 100%; min-width: unset; max-width: unset;
@@ -319,6 +342,7 @@ function buildMailtoUrl(msgs, upToIndex) {
 
 export default function ChatWidget() {
   const [open, setOpen]       = useState(false)
+  const [showTeaser, setShowTeaser] = useState(false)
   const [msgs, setMsgs]       = useState(loadSaved)
   const [input, setInput]     = useState('')
   const [loading, setLoading] = useState(false)
@@ -334,6 +358,28 @@ export default function ChatWidget() {
     if (window.parent === window) return
     window.parent.postMessage({ source: 'libai-widget', open }, '*')
   }, [open])
+
+  // Proactive teaser bubble — shown once per browser session to invite
+  // engagement, same pattern as most embedded chat widgets. Dismissed
+  // (and never shown again this session) as soon as the panel is opened,
+  // by any route, or the visitor explicitly closes the teaser itself.
+  useEffect(() => {
+    if (open) {
+      setShowTeaser(false)
+      try { sessionStorage.setItem('libai-teaser-dismissed', '1') } catch {}
+      return
+    }
+    let dismissed
+    try { dismissed = sessionStorage.getItem('libai-teaser-dismissed') } catch {}
+    if (dismissed) return
+    const t = setTimeout(() => setShowTeaser(true), 2000)
+    return () => clearTimeout(t)
+  }, [open])
+
+  function dismissTeaser() {
+    setShowTeaser(false)
+    try { sessionStorage.setItem('libai-teaser-dismissed', '1') } catch {}
+  }
 
   // Rebuild API history from saved msgs on mount
   useEffect(() => {
@@ -493,6 +539,17 @@ export default function ChatWidget() {
           <MessageCircle size={24} />
           <span className="pulse" />
         </button>
+      )}
+
+      {showTeaser && !open && (
+        <div className="chat-teaser" onClick={() => setOpen(true)} role="button" tabIndex={0}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setOpen(true) }}>
+          <div className="chat-teaser-avatar"><BookOpen size={15} /></div>
+          <div className="chat-teaser-text">Hi! 👋 I'm LibAI — here to help with library hours, research, and more. Ask me anything!</div>
+          <button className="chat-teaser-close" onClick={e => { e.stopPropagation(); dismissTeaser() }} aria-label="Dismiss">
+            <X size={13} />
+          </button>
+        </div>
       )}
 
       <div className={`chat-panel${open ? '' : ' hidden'}`} role="dialog" aria-label="LibAI chat">
